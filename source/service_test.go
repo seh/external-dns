@@ -2354,6 +2354,49 @@ func TestHeadlessServices(t *testing.T) {
 			},
 			false,
 		},
+		{
+			"annotated Headless services return targets from node external IP if alternate annotation is set",
+			"",
+			"testing",
+			"foo",
+			v1.ServiceTypeClusterIP,
+			"",
+			"",
+			false,
+			map[string]string{"component": "foo"},
+			map[string]string{
+				hostnameAnnotationKey:          "service.example.org",
+				useExternalHostIPAnnotationKey: "true",
+			},
+			map[string]string{},
+			v1.ClusterIPNone,
+			[]string{"1.1.1.1"},
+			[]string{""},
+			map[string]string{
+				"component": "foo",
+			},
+			[]string{},
+			[]string{"foo"},
+			[]string{"", "", ""},
+			[]bool{true, true, true},
+			false,
+			[]v1.Node{
+				{
+					Status: v1.NodeStatus{
+						Addresses: []v1.NodeAddress{
+							{
+								Type:    v1.NodeExternalIP,
+								Address: "1.2.3.4",
+							},
+						},
+					},
+				},
+			},
+			[]*endpoint.Endpoint{
+				{DNSName: "service.example.org", Targets: endpoint.Targets{"1.2.3.4"}},
+			},
+			false,
+		},
 	} {
 		tc := tc
 		t.Run(tc.title, func(t *testing.T) {

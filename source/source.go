@@ -46,6 +46,9 @@ const (
 	accessAnnotationKey = "external-dns.alpha.kubernetes.io/access"
 	// The annotation used for specifying the type of endpoints to use for headless services
 	endpointsTypeAnnotationKey = "external-dns.alpha.kubernetes.io/endpoints-type"
+	// The annotation used for having the "publish-host-ip" feature use the external IP address of
+	// the pods' hosting node instead of the favored internal IP address
+	useExternalHostIPAnnotationKey = "external-dns.alpha.kubernetes.io/use-external-host-ip"
 	// The annotation used for defining the desired ingress target
 	targetAnnotationKey = "external-dns.alpha.kubernetes.io/target"
 	// The annotation used for defining the desired DNS record TTL
@@ -62,8 +65,13 @@ const (
 )
 
 const (
+	// EndpointsTypeNodeExternalIP requests publishing the external ID address of nodes hosting pods
+	// selected by a headless Service.
 	EndpointsTypeNodeExternalIP = "NodeExternalIP"
-	EndpointsTypeHostIP         = "HostIP"
+	// EndpointsTypeHostIP requests publishing of the first (and usually internal) IP address of
+	// nodes hosting pods selected by a headless Service, equivalent to the behavior when the
+	// "publish-host-ip" feature is active.
+	EndpointsTypeHostIP = "HostIP"
 )
 
 // Provider-specific annotations
@@ -159,7 +167,16 @@ func getAccessFromAnnotations(annotations map[string]string) string {
 }
 
 func getEndpointsTypeFromAnnotations(annotations map[string]string) string {
-	return annotations[endpointsTypeAnnotationKey]
+	if et, ok := annotations[endpointsTypeAnnotationKey]; ok {
+		return et
+	}
+	// NB: When the annotation is present but not "true," we don't force the use of the host IP
+	// address. Instead, we defer to whether we're running with the "publish-host-ip" feature
+	// active.
+	if annotations[useExternalHostIPAnnotationKey] == "true" {
+		return EndpointsTypeNodeExternalIP
+	}
+	return ""
 }
 
 func getInternalHostnamesFromAnnotations(annotations map[string]string) []string {

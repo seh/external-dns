@@ -25,6 +25,84 @@ import (
 	"sigs.k8s.io/external-dns/endpoint"
 )
 
+func TestGetEndpointsTypeFromAnnotations(t *testing.T) {
+	for _, tc := range []struct {
+		title       string
+		annotations map[string]string
+		expected    string
+	}{
+		{
+			title:       "Neither annotation is present",
+			annotations: nil,
+			expected:    "",
+		},
+		{
+			title: "Primary annotation is empty",
+			annotations: map[string]string{
+				endpointsTypeAnnotationKey: "",
+				"other":                    "something",
+			},
+			expected: "",
+		},
+		{
+			title: "Alternate annotation is empty",
+			annotations: map[string]string{
+				useExternalHostIPAnnotationKey: "",
+				"other":                        "something",
+			},
+			expected: "",
+		},
+		{
+			title: "Primary annotation is invalid",
+			annotations: map[string]string{
+				endpointsTypeAnnotationKey: "invalid",
+			},
+			expected: "invalid",
+		},
+		{
+			title: "Alternate annotation is empty",
+			annotations: map[string]string{
+				useExternalHostIPAnnotationKey: "not-true",
+			},
+			expected: "",
+		},
+		{
+			title: "Primary annotation requests host IP address",
+			annotations: map[string]string{
+				endpointsTypeAnnotationKey: EndpointsTypeHostIP,
+			},
+			expected: EndpointsTypeHostIP,
+		},
+		{
+			title: "Alternate annotation requests host IP address",
+			annotations: map[string]string{
+				useExternalHostIPAnnotationKey: "false",
+			},
+			expected: "",
+		},
+		{
+			title: "Primary annotation requests node's external IP address",
+			annotations: map[string]string{
+				endpointsTypeAnnotationKey: EndpointsTypeNodeExternalIP,
+			},
+			expected: EndpointsTypeNodeExternalIP,
+		},
+		{
+			title: "Alternate annotation requests node's external IP address",
+			annotations: map[string]string{
+				useExternalHostIPAnnotationKey: "true",
+			},
+			expected: EndpointsTypeNodeExternalIP,
+		},
+	} {
+		t.Run(tc.title, func(t *testing.T) {
+			if want, got := tc.expected, getEndpointsTypeFromAnnotations(tc.annotations); got != want {
+				t.Errorf("want %q, got %q", want, got)
+			}
+		})
+	}
+}
+
 func TestGetTTLFromAnnotations(t *testing.T) {
 	for _, tc := range []struct {
 		title       string
