@@ -146,26 +146,31 @@ func (p *Plan) Calculate() *Plan {
 
 	changes := &Changes{}
 
+	skipCreationOf := func(candidates []*endpoint.Endpoint) bool {
+		for _, cr := range candidates {
+			const emptySetIdentifier = ""
+			// For candidate records with an empty set identifier, if any records already exist with
+			// the same DNS name but with a nonempty set identifier, assume that ExternalDNS need
+			// not create this candidate record, and that it should instead leave the existing
+			// records in place, assuming that they're managed by another system.
+			if cr.SetIdentifier == emptySetIdentifier {
+				for identifier, r := range t.rows[normalizeDNSName(cr.DNSName)] {
+					if identifier != emptySetIdentifier && r.current != nil {
+						log.Debugf("refusing creation of record %s since existing record with nonempty set identifier %q exists", r.current.DNSName, identifier)
+						return true
+					}
+				}
+			}
+		}
+		return false
+	}
+
 	for _, topRow := range t.rows {
-	row:
 		for _, row := range topRow {
 			if row.current == nil {
 				// DNS name with this set identifier is not yet taken
-				for _, cr := range row.candidates {
-					const emptySetIdentifier = ""
-					// For candidate records with an empty set identifier, if any records already
-					// exist with the same DNS name but with a nonempty set identifier, assume that
-					// ExternalDNS need not create this candidate record, and that it should instead
-					// leave the existing records in place, assuming that they're managed by another
-					// system.
-					if cr.SetIdentifier == emptySetIdentifier {
-						for identifier, r := range t.rows[normalizeDNSName(cr.DNSName)] {
-							if identifier != emptySetIdentifier && r.current != nil {
-								log.Debugf("refusing creation of record %s since existing record with nonempty set identifier %q exists", r.current.DNSName, identifier)
-								continue row
-							}
-						}
-					}
+				if skipCreationOf(row.candidates) {
+					continue
 				}
 				changes.Create = append(changes.Create, t.resolver.ResolveCreate(row.candidates))
 			}
