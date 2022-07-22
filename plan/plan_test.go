@@ -44,6 +44,7 @@ type PlanTestSuite struct {
 	multiple1                        *endpoint.Endpoint
 	multiple2                        *endpoint.Endpoint
 	multiple3                        *endpoint.Endpoint
+	multiple4                        *endpoint.Endpoint
 	domainFilterFiltered1            *endpoint.Endpoint
 	domainFilterFiltered2            *endpoint.Endpoint
 	domainFilterFiltered3            *endpoint.Endpoint
@@ -185,6 +186,12 @@ func (suite *PlanTestSuite) SetupTest() {
 		Targets:       endpoint.Targets{"192.168.0.2"},
 		RecordType:    "A",
 		SetIdentifier: "test-set-2",
+	}
+	suite.multiple4 = &endpoint.Endpoint{
+		DNSName:       "multiple",
+		Targets:       endpoint.Targets{"192.168.0.3"},
+		RecordType:    "A",
+		SetIdentifier: "",
 	}
 	suite.domainFilterFiltered1 = &endpoint.Endpoint{
 		DNSName:    "foo.domain.tld",
@@ -599,6 +606,31 @@ func (suite *PlanTestSuite) TestMultipleRecordsSameNameDifferentSetIdentifier() 
 	expectedUpdateOld := []*endpoint.Endpoint{suite.multiple1}
 	expectedUpdateNew := []*endpoint.Endpoint{suite.multiple2}
 	expectedDelete := []*endpoint.Endpoint{}
+
+	p := &Plan{
+		Policies:       []Policy{&SyncPolicy{}},
+		Current:        current,
+		Desired:        desired,
+		ManagedRecords: []string{endpoint.RecordTypeA, endpoint.RecordTypeCNAME},
+	}
+
+	changes := p.Calculate().Changes
+	validateEntries(suite.T(), changes.Create, expectedCreate)
+	validateEntries(suite.T(), changes.UpdateNew, expectedUpdateNew)
+	validateEntries(suite.T(), changes.UpdateOld, expectedUpdateOld)
+	validateEntries(suite.T(), changes.Delete, expectedDelete)
+}
+
+func (suite *PlanTestSuite) TestMultipleRecordsSameNameEmptyAndNonemptySetIdentifier() {
+
+	current := []*endpoint.Endpoint{suite.multiple3}
+	desired := []*endpoint.Endpoint{suite.multiple4}
+	expectedCreate := []*endpoint.Endpoint{}
+	expectedUpdateOld := []*endpoint.Endpoint{}
+	expectedUpdateNew := []*endpoint.Endpoint{}
+	// NB: This planned deletion may be filtered by (*TXTRegistry).ApplyChanges if ExternalDNS does
+	// not own this record.
+	expectedDelete := []*endpoint.Endpoint{suite.multiple3}
 
 	p := &Plan{
 		Policies:       []Policy{&SyncPolicy{}},
